@@ -8,8 +8,57 @@ on:
   # Allow manual trigger
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      needs_update: ${{ steps.check.outputs.needs_update }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check for source data changes
+        id: check
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          MASTER_COPY_SPREADSHEET_ID: ${{ secrets.MASTER_COPY_SPREADSHEET_ID }}
+          SOURCE_SHEET_NAME: ${{ secrets.SOURCE_SHEET_NAME }}
+        run: |
+          python check_changes.py > check_output.txt 2>&1
+          if grep -q "NEEDS_UPDATE=true" check_output.txt; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+          fi
+          cat check_output.txt
+
+      - name: Commit hash file if changes detected
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -f last_source_hash.json
+          git diff --staged --quiet || git commit -m "Update last processed hash [skip ci]"
+          git push
+
   update-dashboard:
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.needs_update == 'true'
     runs-on: ubuntu-latest
 
     steps:

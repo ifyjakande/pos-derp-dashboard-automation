@@ -3,6 +3,9 @@
 pullus-pipeline-40a5302e034d.json
 *.json
 
+# Exception: Allow hash tracking file
+!last_source_hash.json
+
 # Python
 __pycache__/
 *.py[cod]

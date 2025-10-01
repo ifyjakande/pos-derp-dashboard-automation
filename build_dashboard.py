@@ -1047,9 +1047,9 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
 
     header_data = [
         {"range": f"{DASHBOARD_SHEET}!A1", "values": [[f'=IMAGE("{pullus_logo_url}", 1)']]},
-        {"range": f"{DASHBOARD_SHEET}!C1:S1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
-        {"range": f"{DASHBOARD_SHEET}!U1", "values": [[f'=IMAGE("{hfr_logo_url}", 1)']]},
-        {"range": f"{DASHBOARD_SHEET}!A2:U2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
+        {"range": f"{DASHBOARD_SHEET}!B1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
+        {"range": f"{DASHBOARD_SHEET}!T1", "values": [[f'=IMAGE("{hfr_logo_url}", 1)']]},
+        {"range": f"{DASHBOARD_SHEET}!A2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
         {"range": f"{DASHBOARD_SHEET}!B3:E3", "values": [["Total Participants", "Distinct Clusters", "Age 18-35 (%)", "Avg Household Size"]]},
         {"range": f"{DASHBOARD_SHEET}!B4:E4", "values": [[total_participants, distinct_clusters, age_18_35_pct / 100, f"{avg_household:.1f}"]]},
     ]
@@ -1069,13 +1069,14 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 4, "startColumnIndex": 0, "endColumnIndex": 21}
             }
         },
-        # Now merge the cells we need
+        # Merge title cells (B1:S1) - leaving A1 and T1 for logos
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 19},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 1, "endColumnIndex": 19},
                 "mergeType": "MERGE_ALL"
             }
         },
+        # Merge subtitle row (A2:U2)
         {
             "mergeCells": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 21},
@@ -1096,7 +1097,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 19},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 1, "endColumnIndex": 19},
                 "cell": {
                     "userEnteredFormat": {
                         "textFormat": {"bold": True, "fontSize": 20, "foregroundColor": hex_to_rgb("FFFFFF"), "fontFamily": "Arial"},
@@ -1211,7 +1212,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "updateDimensionProperties": {
-                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 20, "endIndex": 21},
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 19, "endIndex": 20},
                 "properties": {"pixelSize": 120},
                 "fields": "pixelSize"
             }

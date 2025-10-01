@@ -1113,13 +1113,13 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "fields": "userEnteredFormat.textFormat,userEnteredFormat.horizontalAlignment"
             }
         },
-        # Format subtitle (A2:U2) - centered, smaller, gray text on white background
+        # Format subtitle (A2:U2) - centered, bold, italic, gray text on white background
         {
             "repeatCell": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 21},
                 "cell": {
                     "userEnteredFormat": {
-                        "textFormat": {"bold": False, "fontSize": 11, "foregroundColor": hex_to_rgb("666666"), "fontFamily": "Arial"},
+                        "textFormat": {"bold": True, "italic": True, "fontSize": 11, "foregroundColor": hex_to_rgb("666666"), "fontFamily": "Arial"},
                         "horizontalAlignment": "CENTER"
                     }
                 },

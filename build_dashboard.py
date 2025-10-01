@@ -5,23 +5,39 @@ from __future__ import annotations
 
 import collections
 import os
+import random
+import sys
+import time
+from datetime import datetime, timezone, timedelta
+from functools import wraps
 from statistics import mean
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable, Any
 
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # Load environment variables
 load_dotenv()
 
 SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE")
-SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+MASTER_COPY_SPREADSHEET_ID = os.getenv("MASTER_COPY_SPREADSHEET_ID")
+HEIFER_SPREADSHEET_ID = os.getenv("HEIFER_SPREADSHEET_ID")
 DATA_SHEET = "Data"
 DASHBOARD_SHEET = "Dashboard"
 PIVOT_SHEET = "Pivot_Data"
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+# API rate limiting configuration
+MAX_RETRIES = 5
+INITIAL_BACKOFF = 1.0
+MAX_REQUEST_SIZE_MB = 9  # Keep under 10MB limit
+CHUNK_SIZE = 10000  # Fetch data in 10k record chunks
+
+# API call tracking
+api_call_count = 0
 
 HEX_COLORS = {
     "background": "F5F7FB",
@@ -35,6 +51,57 @@ HEX_COLORS = {
 }
 
 
+def log_api_call(operation: str):
+    """Track API calls for monitoring."""
+    global api_call_count
+    api_call_count += 1
+    print(f"  API Call #{api_call_count}: {operation}")
+
+
+def estimate_request_size(data: Any) -> float:
+    """Estimate request size in MB."""
+    import json
+    try:
+        size_bytes = len(json.dumps(data, default=str).encode('utf-8'))
+        return size_bytes / (1024 * 1024)
+    except:
+        return 0
+
+
+def execute_with_retry(func: Callable, operation_name: str, max_retries: int = MAX_RETRIES) -> Any:
+    """
+    Execute API call with exponential backoff retry logic.
+    Handles rate limits (429), server errors (503), and other transient failures.
+    """
+    for attempt in range(max_retries):
+        try:
+            log_api_call(operation_name)
+            result = func()
+            return result
+        except HttpError as e:
+            status = e.resp.status
+
+            # Rate limit or server error - retry with backoff
+            if status in [429, 503]:
+                if attempt == max_retries - 1:
+                    print(f"  ✗ Max retries reached for {operation_name}")
+                    raise
+
+                # Exponential backoff with jitter
+                wait_time = (INITIAL_BACKOFF * (2 ** attempt)) + (random.random() * 0.1)
+                print(f"  ⚠ Rate limit hit (attempt {attempt + 1}/{max_retries}), waiting {wait_time:.2f}s...")
+                time.sleep(wait_time)
+            else:
+                # Non-retryable error
+                print(f"  ✗ Error in {operation_name}: HTTP {status}")
+                raise
+        except Exception as e:
+            print(f"  ✗ Unexpected error in {operation_name}: {e}")
+            raise
+
+    raise Exception(f"Failed to execute {operation_name} after {max_retries} attempts")
+
+
 def hex_to_rgb(color: str) -> Dict[str, float]:
     color = color.lstrip("#")
     return {
@@ -45,45 +112,139 @@ def hex_to_rgb(color: str) -> Dict[str, float]:
 
 
 def get_service():
-    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    """
+    Get Google Sheets service with credentials.
+    Supports both local (file-based) and GitHub Actions (env var JSON) authentication.
+    """
+    # Check if running in GitHub Actions (service account JSON in env var)
+    service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+
+    if service_account_json:
+        # GitHub Actions mode: parse JSON from environment variable
+        import json
+        service_account_info = json.loads(service_account_json)
+        creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
+    else:
+        # Local mode: use file path from .env
+        if not SERVICE_ACCOUNT_FILE or not os.path.exists(SERVICE_ACCOUNT_FILE):
+            raise ValueError(
+                "No credentials found. Either set GOOGLE_SERVICE_ACCOUNT_JSON env var "
+                "or provide SERVICE_ACCOUNT_FILE path in .env"
+            )
+        creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+
     return build("sheets", "v4", credentials=creds)
 
 
-def get_sheet_id(service, sheet_name: str) -> int:
-    spreadsheet = service.spreadsheets().get(
-        spreadsheetId=SPREADSHEET_ID, fields="sheets(properties(sheetId,title))"
-    ).execute()
+def get_sheet_id(service, sheet_name: str, spreadsheet_id: str) -> int:
+    """Get the sheet ID for a given sheet name in a spreadsheet."""
+    def _get():
+        return service.spreadsheets().get(
+            spreadsheetId=spreadsheet_id, fields="sheets(properties(sheetId,title))"
+        ).execute()
+
+    spreadsheet = execute_with_retry(_get, f"get_sheet_id({sheet_name})")
     for sheet in spreadsheet.get("sheets", []):
         props = sheet.get("properties", {})
         if props.get("title") == sheet_name:
             return props["sheetId"]
-    raise ValueError(f"Sheet '{sheet_name}' not found. Please create it first.")
+    raise ValueError(f"Sheet '{sheet_name}' not found in spreadsheet {spreadsheet_id}.")
+
+
+def create_sheet_if_not_exists(service, spreadsheet_id: str, sheet_name: str) -> int:
+    """Create a sheet if it doesn't exist and return its ID."""
+    try:
+        return get_sheet_id(service, sheet_name, spreadsheet_id)
+    except ValueError:
+        # Sheet doesn't exist, create it
+        print(f"  Creating '{sheet_name}' sheet...")
+        request = {
+            "requests": [{
+                "addSheet": {
+                    "properties": {
+                        "title": sheet_name
+                    }
+                }
+            }]
+        }
+        def _create():
+            return service.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body=request
+            ).execute()
+
+        response = execute_with_retry(_create, f"create_sheet({sheet_name})")
+        sheet_id = response["replies"][0]["addSheet"]["properties"]["sheetId"]
+        print(f"  ✓ Created '{sheet_name}' sheet")
+        return sheet_id
 
 
 def fetch_data(service) -> Tuple[List[str], List[List[str]]]:
-    """Fetch all data from the Data sheet starting from row 3."""
-    result = service.spreadsheets().values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"{DATA_SHEET}!A3:T"
-    ).execute()
-    
-    values = result.get("values", [])
-    if not values:
-        raise ValueError("No data found in Data sheet")
-    
-    header = values[0]
-    data_rows = []
-    for row in values[1:]:
-        # Skip completely empty rows
-        if not any(str(cell).strip() for cell in row):
-            continue
-        # Only include rows with at least some non-blank data
-        if any(cell.strip() if isinstance(cell, str) else cell for cell in row):
-            while len(row) < len(header):
-                row.append("")
-            data_rows.append(row)
-    
-    return header, data_rows
+    """
+    Fetch all data from the Data sheet starting from row 3.
+    Uses pagination to handle large datasets efficiently.
+    """
+    print("  Fetching data with pagination for large datasets...")
+
+    # First, get just the header row
+    def _get_header():
+        return service.spreadsheets().values().get(
+            spreadsheetId=MASTER_COPY_SPREADSHEET_ID,
+            range=f"{DATA_SHEET}!A3:T3"
+        ).execute()
+
+    header_result = execute_with_retry(_get_header, "fetch_header")
+    header_values = header_result.get("values", [])
+
+    if not header_values:
+        raise ValueError("No header found in Data sheet")
+
+    header = header_values[0]
+    all_data_rows = []
+
+    # Fetch data in chunks
+    start_row = 4  # Start after header (row 3)
+    chunk_num = 0
+
+    while True:
+        chunk_num += 1
+        end_row = start_row + CHUNK_SIZE - 1
+        range_str = f"{DATA_SHEET}!A{start_row}:T{end_row}"
+
+        def _get_chunk():
+            return service.spreadsheets().values().get(
+                spreadsheetId=MASTER_COPY_SPREADSHEET_ID,
+                range=range_str
+            ).execute()
+
+        result = execute_with_retry(_get_chunk, f"fetch_data_chunk_{chunk_num}")
+        values = result.get("values", [])
+
+        if not values:
+            # No more data
+            break
+
+        print(f"    Chunk {chunk_num}: Fetched {len(values)} rows (rows {start_row}-{start_row + len(values) - 1})")
+
+        # Process rows in this chunk
+        for row in values:
+            # Skip completely empty rows
+            if not any(str(cell).strip() for cell in row):
+                continue
+            # Only include rows with at least some non-blank data
+            if any(cell.strip() if isinstance(cell, str) else cell for cell in row):
+                while len(row) < len(header):
+                    row.append("")
+                all_data_rows.append(row)
+
+        # If we got fewer rows than CHUNK_SIZE, we've reached the end
+        if len(values) < CHUNK_SIZE:
+            break
+
+        start_row = end_row + 1
+
+    print(f"  ✓ Fetched {len(all_data_rows)} total data rows across {chunk_num} chunks")
+    return header, all_data_rows
 
 
 def normalize_data(header: List[str], rows: List[List[str]]) -> List[Dict[str, str]]:
@@ -287,44 +448,57 @@ def aggregate_data(data: List[Dict[str, str]]) -> Dict:
     }
 
 
-def clear_sheet(service, sheet_name: str):
+def clear_sheet(service, sheet_name: str, spreadsheet_id: str):
     """Clear all content from a sheet."""
     print(f"Clearing {sheet_name}...")
-    service.spreadsheets().values().clear(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!A1:ZZ"
-    ).execute()
-    
-    sheet_id = get_sheet_id(service, sheet_name)
-    
-    spreadsheet = service.spreadsheets().get(
-        spreadsheetId=SPREADSHEET_ID,
-        fields="sheets(charts(chartId),properties(sheetId,title))"
-    ).execute()
-    
+
+    def _clear():
+        return service.spreadsheets().values().clear(
+            spreadsheetId=spreadsheet_id,
+            range=f"{sheet_name}!A1:ZZ"
+        ).execute()
+
+    execute_with_retry(_clear, f"clear_sheet({sheet_name})")
+
+    sheet_id = get_sheet_id(service, sheet_name, spreadsheet_id)
+
+    def _get_charts():
+        return service.spreadsheets().get(
+            spreadsheetId=spreadsheet_id,
+            fields="sheets(charts(chartId),properties(sheetId,title))"
+        ).execute()
+
+    spreadsheet = execute_with_retry(_get_charts, f"get_charts({sheet_name})")
+
     requests = []
     for sheet in spreadsheet.get("sheets", []):
         if sheet.get("properties", {}).get("sheetId") != sheet_id:
             continue
         for chart in sheet.get("charts", []):
             requests.append({"deleteEmbeddedObject": {"objectId": chart["chartId"]}})
-    
+
     if requests:
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=SPREADSHEET_ID,
-            body={"requests": requests}
-        ).execute()
+        def _delete_charts():
+            return service.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": requests}
+            ).execute()
+
+        execute_with_retry(_delete_charts, f"delete_charts({sheet_name})")
 
 
-def write_pivot_tables(service, aggregations: Dict):
-    """Write all pivot tables to Pivot_Data sheet in a structured layout."""
+def write_pivot_tables(service, aggregations: Dict, spreadsheet_id: str):
+    """
+    Write all pivot tables to Pivot_Data sheet in a structured layout.
+    Uses size estimation and chunking to handle large datasets.
+    """
     print("Writing pivot tables to Pivot_Data...")
-    
+
     all_data = []
-    
+
     row = 1
     tables_layout = {}
-    
+
     tables = [
         ("gender", "Gender Distribution", aggregations["gender"]),
         ("age", "Age Range Distribution", aggregations["age"]),
@@ -339,20 +513,20 @@ def write_pivot_tables(service, aggregations: Dict):
         ("marital_gender", "Marital Status by Gender", aggregations["marital_gender"]),
         ("employment_stats", "Employment Statistics", aggregations["employment_stats"]),
     ]
-    
+
     for table_key, title, data in tables:
         all_data.append({
             "range": f"{PIVOT_SHEET}!A{row}",
             "values": [[f"--- {title} ---"]]
         })
         row += 1
-        
+
         start_row = row
         all_data.append({
             "range": f"{PIVOT_SHEET}!A{row}",
             "values": data
         })
-        
+
         # Store layout - charts will reference exact data rows only
         tables_layout[table_key] = {
             "start_row": start_row,
@@ -362,26 +536,52 @@ def write_pivot_tables(service, aggregations: Dict):
             "data_start_row": start_row + 1,  # First data row after header
             "data_end_row": start_row + len(data) - 1  # Last actual data row
         }
-        
+
         row += len(data) + 2
-    
-    service.spreadsheets().values().batchUpdate(
-        spreadsheetId=SPREADSHEET_ID,
-        body={"valueInputOption": "USER_ENTERED", "data": all_data}
-    ).execute()
-    
-    print(f"Written {len(tables)} pivot tables")
-    print("\nPivot table layout:")
+
+    # Estimate payload size and chunk if necessary
+    payload = {"valueInputOption": "USER_ENTERED", "data": all_data}
+    payload_size = estimate_request_size(payload)
+
+    print(f"  Pivot tables payload size: {payload_size:.2f} MB")
+
+    if payload_size > MAX_REQUEST_SIZE_MB:
+        print(f"  ⚠ Payload exceeds {MAX_REQUEST_SIZE_MB}MB, splitting into chunks...")
+        # Split into chunks
+        chunk_size = len(all_data) // 2  # Simple split
+        for i in range(0, len(all_data), chunk_size):
+            chunk = all_data[i:i + chunk_size]
+            chunk_payload = {"valueInputOption": "USER_ENTERED", "data": chunk}
+
+            def _write_chunk():
+                return service.spreadsheets().values().batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body=chunk_payload
+                ).execute()
+
+            execute_with_retry(_write_chunk, f"write_pivot_chunk_{i // chunk_size + 1}")
+            print(f"    Wrote chunk {i // chunk_size + 1} ({len(chunk)} tables)")
+    else:
+        def _write():
+            return service.spreadsheets().values().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body=payload
+            ).execute()
+
+        execute_with_retry(_write, "write_pivot_tables")
+
+    print(f"  ✓ Written {len(tables)} pivot tables")
+    print("\n  Pivot table layout:")
     for key, meta in tables_layout.items():
-        print(f"  {key}: header_row={meta['header_row']}, data_rows={meta['data_start_row']}-{meta['data_end_row']}")
-    
+        print(f"    {key}: header_row={meta['header_row']}, data_rows={meta['data_start_row']}-{meta['data_end_row']}")
+
     return tables_layout
 
 
-def format_pivot_sheet(service, sheet_id: int):
+def format_pivot_sheet(service, sheet_id: int, spreadsheet_id: str):
     """Apply formatting to Pivot_Data sheet and keep it hidden."""
     print("Formatting Pivot_Data sheet...")
-    
+
     requests = [
         {
             "repeatCell": {
@@ -410,14 +610,17 @@ def format_pivot_sheet(service, sheet_id: int):
             }
         }
     ]
-    
-    service.spreadsheets().batchUpdate(
-        spreadsheetId=SPREADSHEET_ID,
-        body={"requests": requests}
-    ).execute()
+
+    def _format():
+        return service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": requests}
+        ).execute()
+
+    execute_with_retry(_format, "format_pivot_sheet")
 
 
-def create_charts(service, dashboard_sheet_id: int, pivot_sheet_id: int, layout: Dict):
+def create_charts(service, dashboard_sheet_id: int, pivot_sheet_id: int, layout: Dict, spreadsheet_id: str):
     """Create all charts in Dashboard sheet."""
     print("Creating charts in Dashboard...")
     print(f"\nDebug - Layout keys: {list(layout.keys())}")
@@ -774,35 +977,69 @@ def create_charts(service, dashboard_sheet_id: int, pivot_sheet_id: int, layout:
         })
     
     if requests:
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=SPREADSHEET_ID,
-            body={"requests": requests}
-        ).execute()
-        print(f"Created {len(requests)} charts")
+        # Estimate size and check if chunking is needed
+        payload = {"requests": requests}
+        payload_size = estimate_request_size(payload)
+        print(f"  Charts payload size: {payload_size:.2f} MB")
+
+        if payload_size > MAX_REQUEST_SIZE_MB:
+            print(f"  ⚠ Payload exceeds {MAX_REQUEST_SIZE_MB}MB, splitting charts into batches...")
+            # Split into batches of 6 charts each
+            batch_size = 6
+            for i in range(0, len(requests), batch_size):
+                batch = requests[i:i + batch_size]
+                batch_payload = {"requests": batch}
+
+                def _create_batch():
+                    return service.spreadsheets().batchUpdate(
+                        spreadsheetId=spreadsheet_id,
+                        body=batch_payload
+                    ).execute()
+
+                execute_with_retry(_create_batch, f"create_charts_batch_{i // batch_size + 1}")
+                print(f"    Created batch {i // batch_size + 1} ({len(batch)} charts)")
+        else:
+            def _create():
+                return service.spreadsheets().batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body=payload
+                ).execute()
+
+            execute_with_retry(_create, "create_charts")
+
+        print(f"  ✓ Created {len(requests)} charts")
 
 
-def add_dashboard_header(service, data: List[Dict], sheet_id: int):
+def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_id: str):
     """Add professional header with title and KPIs."""
     print("Adding dashboard header...")
-    
+
     total_participants = len(data)
     distinct_clusters = len(set(r["Cluster"] for r in data))
     age_18_35 = sum(1 for r in data if r["Age_Range"] == "18-35")
     age_18_35_pct = (age_18_35 / total_participants * 100) if total_participants else 0
     avg_household = mean([r["Household_Num"] for r in data if r["Household_Num"] > 0]) if any(r["Household_Num"] > 0 for r in data) else 0
 
+    # Get current time in WAT (UTC+1)
+    wat_tz = timezone(timedelta(hours=1))
+    current_time = datetime.now(wat_tz)
+    timestamp = current_time.strftime("%B %d, %Y at %I:%M %p WAT")
+
     header_data = [
         {"range": f"{DASHBOARD_SHEET}!A1:U1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
-        {"range": f"{DASHBOARD_SHEET}!A2:U2", "values": [["Program Overview & Demographics Analysis"]]},
+        {"range": f"{DASHBOARD_SHEET}!A2:U2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
         {"range": f"{DASHBOARD_SHEET}!B3:E3", "values": [["Total Participants", "Distinct Clusters", "Age 18-35 (%)", "Avg Household Size"]]},
         {"range": f"{DASHBOARD_SHEET}!B4:E4", "values": [[total_participants, distinct_clusters, age_18_35_pct / 100, f"{avg_household:.1f}"]]},
     ]
-    
-    service.spreadsheets().values().batchUpdate(
-        spreadsheetId=SPREADSHEET_ID,
-        body={"valueInputOption": "USER_ENTERED", "data": header_data}
-    ).execute()
-    
+
+    def _write_header():
+        return service.spreadsheets().values().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"valueInputOption": "USER_ENTERED", "data": header_data}
+        ).execute()
+
+    execute_with_retry(_write_header, "write_dashboard_header")
+
     requests = [
         {
             "mergeCells": {
@@ -927,17 +1164,20 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int):
             }
         }
     ]
-    
-    service.spreadsheets().batchUpdate(
-        spreadsheetId=SPREADSHEET_ID,
-        body={"requests": requests}
-    ).execute()
+
+    def _format_header():
+        return service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": requests}
+        ).execute()
+
+    execute_with_retry(_format_header, "format_dashboard_header")
 
 
-def format_dashboard_sheet(service, sheet_id: int):
+def format_dashboard_sheet(service, sheet_id: int, spreadsheet_id: str):
     """Format the Dashboard sheet."""
     print("Formatting Dashboard sheet...")
-    
+
     requests = [
         {
             "repeatCell": {
@@ -969,73 +1209,85 @@ def format_dashboard_sheet(service, sheet_id: int):
             }
         }
     ]
-    
-    service.spreadsheets().batchUpdate(
-        spreadsheetId=SPREADSHEET_ID,
-        body={"requests": requests}
-    ).execute()
+
+    def _format():
+        return service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": requests}
+        ).execute()
+
+    execute_with_retry(_format, "format_dashboard_sheet")
+
+
+def populate_spreadsheet(service, spreadsheet_id: str, spreadsheet_name: str, data: List[Dict], aggregations: Dict):
+    """Populate a single spreadsheet with dashboard and pivot data."""
+    print(f"\n{'='*60}")
+    print(f"Populating {spreadsheet_name}...")
+    print(f"{'='*60}")
+
+    # Create sheets if they don't exist
+    dashboard_id = create_sheet_if_not_exists(service, spreadsheet_id, DASHBOARD_SHEET)
+    pivot_id = create_sheet_if_not_exists(service, spreadsheet_id, PIVOT_SHEET)
+
+    # Clear existing content
+    clear_sheet(service, PIVOT_SHEET, spreadsheet_id)
+    clear_sheet(service, DASHBOARD_SHEET, spreadsheet_id)
+
+    # Write pivot tables and get layout
+    layout = write_pivot_tables(service, aggregations, spreadsheet_id)
+    format_pivot_sheet(service, pivot_id, spreadsheet_id)
+
+    # Create dashboard with header and charts
+    format_dashboard_sheet(service, dashboard_id, spreadsheet_id)
+    add_dashboard_header(service, data, dashboard_id, spreadsheet_id)
+    create_charts(service, dashboard_id, pivot_id, layout, spreadsheet_id)
+
+    print(f"✓ {spreadsheet_name} updated successfully!")
 
 
 def main():
+    global api_call_count
+    start_time = time.time()
+
     print("="*60)
     print("POS-DERP 3.0 Dashboard Builder")
     print("="*60)
-    
+    print(f"Configuration:")
+    print(f"  • Max retries per call: {MAX_RETRIES}")
+    print(f"  • Max request size: {MAX_REQUEST_SIZE_MB}MB")
+    print(f"  • Chunk size for data fetch: {CHUNK_SIZE:,} rows")
+    print("="*60)
+
     try:
         service = get_service()
         print("✓ Connected to Google Sheets API")
-        
-        # Check if old sheet name exists and rename it
-        try:
-            old_pivot_id = get_sheet_id(service, "Dashboard_Data")
-            print("Found old 'Dashboard_Data' sheet, renaming to 'Pivot_Data'...")
-            service.spreadsheets().batchUpdate(
-                spreadsheetId=SPREADSHEET_ID,
-                body={"requests": [{
-                    "updateSheetProperties": {
-                        "properties": {
-                            "sheetId": old_pivot_id,
-                            "title": PIVOT_SHEET
-                        },
-                        "fields": "title"
-                    }
-                }]}
-            ).execute()
-            print("✓ Renamed to Pivot_Data")
-        except ValueError:
-            pass  # Sheet already has the new name or doesn't exist
-        
-        dashboard_id = get_sheet_id(service, DASHBOARD_SHEET)
-        pivot_id = get_sheet_id(service, PIVOT_SHEET)
-        print(f"✓ Found Dashboard sheet")
-        print(f"✓ Found Pivot_Data sheet")
-        
-        print("\nFetching data from Data sheet...")
+
+        # Fetch data from Master Copy spreadsheet
+        print("\nFetching data from Master Copy (Data sheet)...")
         header, rows = fetch_data(service)
         print(f"✓ Loaded {len(rows)} rows")
-        
+
+        # Normalize and aggregate data
         print("\nNormalizing and processing data...")
         data = normalize_data(header, rows)
         print(f"✓ Processed {len(data)} records")
-        
+
         print("\nCreating pivot tables...")
         aggregations = aggregate_data(data)
         print(f"✓ Created {len(aggregations)} pivot tables")
-        
-        clear_sheet(service, PIVOT_SHEET)
-        clear_sheet(service, DASHBOARD_SHEET)
-        
-        layout = write_pivot_tables(service, aggregations)
-        format_pivot_sheet(service, pivot_id)
-        
-        format_dashboard_sheet(service, dashboard_id)
-        add_dashboard_header(service, data, dashboard_id)
-        create_charts(service, dashboard_id, pivot_id, layout)
-        
+
+        # Populate Master Copy spreadsheet
+        populate_spreadsheet(service, MASTER_COPY_SPREADSHEET_ID, "Master Copy Spreadsheet", data, aggregations)
+
+        # Populate Heifer spreadsheet
+        populate_spreadsheet(service, HEIFER_SPREADSHEET_ID, "Heifer Spreadsheet", data, aggregations)
+
+        elapsed_time = time.time() - start_time
+
         print("\n" + "="*60)
-        print("✓ Dashboard build completed successfully!")
+        print("✓ All spreadsheets updated successfully!")
         print("="*60)
-        
+
         print("\n📊 Dashboard Summary:")
         print(f"  • Total Participants: {len(data)}")
         print(f"  • Pivot Tables Created: {len(aggregations)}")
@@ -1044,14 +1296,26 @@ def main():
         print(f"  • Employment: Self-Employed ({sum(1 for r in data if r['Employment'] == 'Self-Employed')}), Unemployed ({sum(1 for r in data if r['Employment'] == 'Unemployed')}), Employed ({sum(1 for r in data if r['Employment'] == 'Employed')})")
         print(f"  • Gender: Female ({sum(1 for r in data if r['Sex'] == 'Female')}), Male ({sum(1 for r in data if r['Sex'] == 'Male')})")
 
+        print("\n📈 Performance Metrics:")
+        print(f"  • Total API calls: {api_call_count}")
+        print(f"  • Total execution time: {elapsed_time:.2f} seconds")
+        print(f"  • Average time per API call: {elapsed_time / api_call_count:.2f} seconds")
+
         print("\n✅ All data verified and charts are accurate!")
-        
+
+    except HttpError as e:
+        print(f"\n✗ Google API Error: {e}")
+        print(f"  Status: {e.resp.status}")
+        print(f"  Reason: {e.resp.get('error', {}).get('message', 'Unknown error')}")
+        import traceback
+        traceback.print_exc()
+        return 1
     except Exception as e:
         print(f"\n✗ Error: {e}")
         import traceback
         traceback.print_exc()
         return 1
-    
+
     return 0
 
 

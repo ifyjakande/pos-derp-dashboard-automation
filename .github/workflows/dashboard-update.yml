@@ -1,0 +1,36 @@
+name: Update Dashboard Every 10 Minutes
+
+on:
+  # Run every 10 minutes
+  schedule:
+    - cron: '*/10 * * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run dashboard builder
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          MASTER_COPY_SPREADSHEET_ID: ${{ secrets.MASTER_COPY_SPREADSHEET_ID }}
+          HEIFER_SPREADSHEET_ID: ${{ secrets.HEIFER_SPREADSHEET_ID }}
+        run: |
+          python build_dashboard.py

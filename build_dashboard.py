@@ -623,10 +623,7 @@ def format_pivot_sheet(service, sheet_id: int, spreadsheet_id: str):
 def create_charts(service, dashboard_sheet_id: int, pivot_sheet_id: int, layout: Dict, spreadsheet_id: str):
     """Create all charts in Dashboard sheet."""
     print("Creating charts in Dashboard...")
-    print(f"\nDebug - Layout keys: {list(layout.keys())}")
-    for key, meta in layout.items():
-        print(f"  {key}: start_row={meta['start_row']}, num_rows={meta['num_rows']}, num_cols={meta['num_cols']}")
-    
+
     requests = []
     
     def make_range(sheet_id: int, start_row: int, end_row: int, start_col: int, end_col: int):
@@ -719,9 +716,7 @@ def create_charts(service, dashboard_sheet_id: int, pivot_sheet_id: int, layout:
         data_end_row = meta["data_end_row"]
         labels = make_range(pivot_sheet_id, data_start_row, data_end_row + 1, 1, 1)
         values = make_range(pivot_sheet_id, data_start_row, data_end_row + 1, 2, 2)
-        
-        print(f"  Age chart: data rows {data_start_row} to {data_end_row}")
-        
+
         add_chart("Age Range Distribution", {
             "basicChart": {
                 "chartType": "COLUMN",
@@ -1288,20 +1283,12 @@ def main():
         print("✓ All spreadsheets updated successfully!")
         print("="*60)
 
-        print("\n📊 Dashboard Summary:")
-        print(f"  • Total Participants: {len(data)}")
-        print(f"  • Pivot Tables Created: {len(aggregations)}")
-        print(f"  • Charts Generated: 12")
-        print(f"  • States: Kaduna ({sum(1 for r in data if r['State'] == 'Kaduna')}), Nasarawa ({sum(1 for r in data if r['State'] == 'Nasarawa')})")
-        print(f"  • Employment: Self-Employed ({sum(1 for r in data if r['Employment'] == 'Self-Employed')}), Unemployed ({sum(1 for r in data if r['Employment'] == 'Unemployed')}), Employed ({sum(1 for r in data if r['Employment'] == 'Employed')})")
-        print(f"  • Gender: Female ({sum(1 for r in data if r['Sex'] == 'Female')}), Male ({sum(1 for r in data if r['Sex'] == 'Male')})")
-
         print("\n📈 Performance Metrics:")
+        print(f"  • Total records processed: {len(data)}")
         print(f"  • Total API calls: {api_call_count}")
         print(f"  • Total execution time: {elapsed_time:.2f} seconds")
-        print(f"  • Average time per API call: {elapsed_time / api_call_count:.2f} seconds")
 
-        print("\n✅ All data verified and charts are accurate!")
+        print("\n✅ Dashboard update completed successfully!")
 
     except HttpError as e:
         print(f"\n✗ Google API Error: {e}")

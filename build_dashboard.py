@@ -1049,8 +1049,8 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         # Row 1: Logos side by side (A1 and B1)
         {"range": f"{DASHBOARD_SHEET}!A1", "values": [[f'=IMAGE("{pullus_logo_url}", 1)']]},
         {"range": f"{DASHBOARD_SHEET}!B1", "values": [[f'=IMAGE("{hfr_logo_url}", 1)']]},
-        # Row 1: Main title centered (D1)
-        {"range": f"{DASHBOARD_SHEET}!D1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
+        # Row 1: Main title centered (C1) - closer to logos
+        {"range": f"{DASHBOARD_SHEET}!C1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
         # Row 2: Subtitle centered (A2)
         {"range": f"{DASHBOARD_SHEET}!A2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
         # KPI headers and values
@@ -1073,10 +1073,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 4, "startColumnIndex": 0, "endColumnIndex": 21}
             }
         },
-        # Merge title cells (D1:U1) for centered title
+        # Merge title cells (C1:U1) for centered title - closer to logos
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 3, "endColumnIndex": 21},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 21},
                 "mergeType": "MERGE_ALL"
             }
         },
@@ -1100,10 +1100,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "fields": "userEnteredFormat.backgroundColor,userEnteredFormat.verticalAlignment"
             }
         },
-        # Format main title (D1:U1) - centered, bold, blue accent color
+        # Format main title (C1:U1) - centered, bold, blue accent color
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 3, "endColumnIndex": 21},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 21},
                 "cell": {
                     "userEnteredFormat": {
                         "textFormat": {"bold": True, "fontSize": 22, "foregroundColor": hex_to_rgb(HEX_COLORS["accent_primary"]), "fontFamily": "Arial"},

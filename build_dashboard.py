@@ -1041,8 +1041,14 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
     current_time = datetime.now(wat_tz)
     timestamp = current_time.strftime("%B %d, %Y at %I:%M %p WAT")
 
+    # GitHub raw URLs for sponsor logos
+    pullus_logo_url = "https://raw.githubusercontent.com/ifyjakande/pos-derp-dashboard-automation/master/pullus-final-logo-3.svg"
+    hfr_logo_url = "https://raw.githubusercontent.com/ifyjakande/pos-derp-dashboard-automation/master/hfr-logo-navy.svg"
+
     header_data = [
-        {"range": f"{DASHBOARD_SHEET}!A1:U1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
+        {"range": f"{DASHBOARD_SHEET}!A1", "values": [[f'=IMAGE("{pullus_logo_url}", 1)']]},
+        {"range": f"{DASHBOARD_SHEET}!C1:S1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
+        {"range": f"{DASHBOARD_SHEET}!U1", "values": [[f'=IMAGE("{hfr_logo_url}", 1)']]},
         {"range": f"{DASHBOARD_SHEET}!A2:U2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
         {"range": f"{DASHBOARD_SHEET}!B3:E3", "values": [["Total Participants", "Distinct Clusters", "Age 18-35 (%)", "Avg Household Size"]]},
         {"range": f"{DASHBOARD_SHEET}!B4:E4", "values": [[total_participants, distinct_clusters, age_18_35_pct / 100, f"{avg_household:.1f}"]]},
@@ -1059,7 +1065,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
     requests = [
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 21},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 19},
                 "mergeType": "MERGE_ALL"
             }
         },
@@ -1075,12 +1081,22 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "cell": {
                     "userEnteredFormat": {
                         "backgroundColor": hex_to_rgb("1B1E36"),
-                        "textFormat": {"bold": True, "fontSize": 20, "foregroundColor": hex_to_rgb("FFFFFF"), "fontFamily": "Arial"},
-                        "horizontalAlignment": "CENTER",
                         "verticalAlignment": "MIDDLE"
                     }
                 },
-                "fields": "userEnteredFormat"
+                "fields": "userEnteredFormat.backgroundColor,userEnteredFormat.verticalAlignment"
+            }
+        },
+        {
+            "repeatCell": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 19},
+                "cell": {
+                    "userEnteredFormat": {
+                        "textFormat": {"bold": True, "fontSize": 20, "foregroundColor": hex_to_rgb("FFFFFF"), "fontFamily": "Arial"},
+                        "horizontalAlignment": "CENTER"
+                    }
+                },
+                "fields": "userEnteredFormat.textFormat,userEnteredFormat.horizontalAlignment"
             }
         },
         {
@@ -1154,7 +1170,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         {
             "updateDimensionProperties": {
                 "range": {"sheetId": sheet_id, "dimension": "ROWS", "startIndex": 0, "endIndex": 1},
-                "properties": {"pixelSize": 50},
+                "properties": {"pixelSize": 60},
                 "fields": "pixelSize"
             }
         },
@@ -1174,8 +1190,22 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "updateDimensionProperties": {
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 1},
+                "properties": {"pixelSize": 120},
+                "fields": "pixelSize"
+            }
+        },
+        {
+            "updateDimensionProperties": {
                 "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 1, "endIndex": 5},
                 "properties": {"pixelSize": 150},
+                "fields": "pixelSize"
+            }
+        },
+        {
+            "updateDimensionProperties": {
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 20, "endIndex": 21},
+                "properties": {"pixelSize": 120},
                 "fields": "pixelSize"
             }
         }

@@ -8,6 +8,10 @@ on:
   # Allow manual trigger
   workflow_dispatch:
 
+  # Trigger on push to test immediately
+  push:
+    branches: [ master, main ]
+
 jobs:
   update-dashboard:
     runs-on: ubuntu-latest

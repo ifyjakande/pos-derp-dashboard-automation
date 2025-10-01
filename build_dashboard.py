@@ -1046,10 +1046,11 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
     hfr_logo_url = "https://raw.githubusercontent.com/ifyjakande/pos-derp-dashboard-automation/master/hfr-logo-navy.svg"
 
     header_data = [
-        # Row 1: Pullus logo in A1
+        # Row 1: Logos side by side (A1 and B1)
         {"range": f"{DASHBOARD_SHEET}!A1", "values": [[f'=IMAGE("{pullus_logo_url}", 1)']]},
-        # Row 1: Main title centered (B1:O1) - starts from B1 for better centering
-        {"range": f"{DASHBOARD_SHEET}!B1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
+        {"range": f"{DASHBOARD_SHEET}!B1", "values": [[f'=IMAGE("{hfr_logo_url}", 1)']]},
+        # Row 1: Main title centered (C1) - closer to logos
+        {"range": f"{DASHBOARD_SHEET}!C1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
         # Row 2: Subtitle centered (A2)
         {"range": f"{DASHBOARD_SHEET}!A2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
         # KPI headers and values
@@ -1072,10 +1073,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 4, "startColumnIndex": 0, "endColumnIndex": 21}
             }
         },
-        # Merge title cells (B1:O1) for centered title over actual dashboard content
+        # Merge title cells (C1:O1) for centered title over actual dashboard content
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 1, "endColumnIndex": 15},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 15},
                 "mergeType": "MERGE_ALL"
             }
         },
@@ -1099,10 +1100,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "fields": "userEnteredFormat.backgroundColor,userEnteredFormat.verticalAlignment"
             }
         },
-        # Format main title (B1:O1) - centered, bold, blue accent color
+        # Format main title (C1:O1) - centered, bold, blue accent color
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 1, "endColumnIndex": 15},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 15},
                 "cell": {
                     "userEnteredFormat": {
                         "textFormat": {"bold": True, "fontSize": 22, "foregroundColor": hex_to_rgb(HEX_COLORS["accent_primary"]), "fontFamily": "Arial"},

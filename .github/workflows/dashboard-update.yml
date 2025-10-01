@@ -1,9 +1,9 @@
-name: Update Dashboard Every 10 Minutes
+name: Update Dashboard Every 5 Minutes
 
 on:
-  # Run every 10 minutes
+  # Run every 5 minutes
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/5 * * * *'
 
   # Allow manual trigger
   workflow_dispatch:

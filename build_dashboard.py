@@ -71,7 +71,7 @@ def estimate_request_size(data: Any) -> float:
 def execute_with_retry(func: Callable, operation_name: str, max_retries: int = MAX_RETRIES) -> Any:
     """
     Execute API call with exponential backoff retry logic.
-    Handles rate limits (429), server errors (503), and other transient failures.
+    Handles rate limits (429), server errors (503), timeouts, and other transient failures.
     """
     for attempt in range(max_retries):
         try:
@@ -95,9 +95,30 @@ def execute_with_retry(func: Callable, operation_name: str, max_retries: int = M
                 # Non-retryable error
                 print(f"  ✗ Error in {operation_name}: HTTP {status}")
                 raise
+        except TimeoutError as e:
+            # Network timeout - retry with backoff
+            if attempt == max_retries - 1:
+                print(f"  ✗ Max retries reached for {operation_name} after timeout")
+                raise
+
+            wait_time = (INITIAL_BACKOFF * (2 ** attempt)) + (random.random() * 0.1)
+            print(f"  ⚠ Timeout on {operation_name} (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.2f}s...")
+            time.sleep(wait_time)
         except Exception as e:
-            print(f"  ✗ Unexpected error in {operation_name}: {e}")
-            raise
+            # Check if it's a timeout-related exception
+            error_str = str(e).lower()
+            if 'timeout' in error_str or 'timed out' in error_str:
+                if attempt == max_retries - 1:
+                    print(f"  ✗ Max retries reached for {operation_name} after timeout")
+                    raise
+
+                wait_time = (INITIAL_BACKOFF * (2 ** attempt)) + (random.random() * 0.1)
+                print(f"  ⚠ Timeout on {operation_name} (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.2f}s...")
+                time.sleep(wait_time)
+            else:
+                # Other unexpected error - don't retry
+                print(f"  ✗ Unexpected error in {operation_name}: {e}")
+                raise
 
     raise Exception(f"Failed to execute {operation_name} after {max_retries} attempts")
 

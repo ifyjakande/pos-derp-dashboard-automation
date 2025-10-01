@@ -1073,17 +1073,17 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 4, "startColumnIndex": 0, "endColumnIndex": 21}
             }
         },
-        # Merge title cells (C1:U1) for centered title - closer to logos
+        # Merge title cells (C1:O1) for centered title over actual dashboard content
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 21},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 15},
                 "mergeType": "MERGE_ALL"
             }
         },
-        # Merge subtitle row (A2:U2)
+        # Merge subtitle row (A2:O2) to match dashboard content width
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 21},
+                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 15},
                 "mergeType": "MERGE_ALL"
             }
         },
@@ -1100,10 +1100,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "fields": "userEnteredFormat.backgroundColor,userEnteredFormat.verticalAlignment"
             }
         },
-        # Format main title (C1:U1) - centered, bold, blue accent color
+        # Format main title (C1:O1) - centered, bold, blue accent color
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 21},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 15},
                 "cell": {
                     "userEnteredFormat": {
                         "textFormat": {"bold": True, "fontSize": 22, "foregroundColor": hex_to_rgb(HEX_COLORS["accent_primary"]), "fontFamily": "Arial"},
@@ -1113,10 +1113,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "fields": "userEnteredFormat.textFormat,userEnteredFormat.horizontalAlignment"
             }
         },
-        # Format subtitle (A2:U2) - centered, bold, italic, gray text on white background
+        # Format subtitle (A2:O2) - centered, bold, italic, gray text on white background
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 21},
+                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 15},
                 "cell": {
                     "userEnteredFormat": {
                         "textFormat": {"bold": True, "italic": True, "fontSize": 11, "foregroundColor": hex_to_rgb("666666"), "fontFamily": "Arial"},

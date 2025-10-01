@@ -1100,13 +1100,13 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "fields": "userEnteredFormat.backgroundColor,userEnteredFormat.verticalAlignment"
             }
         },
-        # Format main title (D1:U1) - centered, bold, dark text
+        # Format main title (D1:U1) - centered, bold, blue accent color
         {
             "repeatCell": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 3, "endColumnIndex": 21},
                 "cell": {
                     "userEnteredFormat": {
-                        "textFormat": {"bold": True, "fontSize": 20, "foregroundColor": hex_to_rgb("1B1E36"), "fontFamily": "Arial"},
+                        "textFormat": {"bold": True, "fontSize": 22, "foregroundColor": hex_to_rgb(HEX_COLORS["accent_primary"]), "fontFamily": "Arial"},
                         "horizontalAlignment": "CENTER"
                     }
                 },
@@ -1210,8 +1210,8 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "updateDimensionProperties": {
-                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 6},
-                "properties": {"pixelSize": 150},
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 1, "endIndex": 5},
+                "properties": {"pixelSize": 180},
                 "fields": "pixelSize"
             }
         }

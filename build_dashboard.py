@@ -1063,6 +1063,13 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
     execute_with_retry(_write_header, "write_dashboard_header")
 
     requests = [
+        # First unmerge any existing cells in the header area to avoid conflicts
+        {
+            "unmergeCells": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 4, "startColumnIndex": 0, "endColumnIndex": 21}
+            }
+        },
+        # Now merge the cells we need
         {
             "mergeCells": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 19},

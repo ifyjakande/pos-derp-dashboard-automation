@@ -1046,10 +1046,14 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
     hfr_logo_url = "https://raw.githubusercontent.com/ifyjakande/pos-derp-dashboard-automation/master/hfr-logo-navy.svg"
 
     header_data = [
+        # Row 1: Logos side by side (A1 and B1)
         {"range": f"{DASHBOARD_SHEET}!A1", "values": [[f'=IMAGE("{pullus_logo_url}", 1)']]},
-        {"range": f"{DASHBOARD_SHEET}!B1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
-        {"range": f"{DASHBOARD_SHEET}!T1", "values": [[f'=IMAGE("{hfr_logo_url}", 1)']]},
+        {"range": f"{DASHBOARD_SHEET}!B1", "values": [[f'=IMAGE("{hfr_logo_url}", 1)']]},
+        # Row 1: Main title centered (D1)
+        {"range": f"{DASHBOARD_SHEET}!D1", "values": [["POS-DERP 3.0 BENEFICIARIES DASHBOARD"]]},
+        # Row 2: Subtitle centered (A2)
         {"range": f"{DASHBOARD_SHEET}!A2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
+        # KPI headers and values
         {"range": f"{DASHBOARD_SHEET}!B3:E3", "values": [["Total Participants", "Distinct Clusters", "Age 18-35 (%)", "Avg Household Size"]]},
         {"range": f"{DASHBOARD_SHEET}!B4:E4", "values": [[total_participants, distinct_clusters, age_18_35_pct / 100, f"{avg_household:.1f}"]]},
     ]
@@ -1069,10 +1073,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 4, "startColumnIndex": 0, "endColumnIndex": 21}
             }
         },
-        # Merge title cells (B1:S1) - leaving A1 and T1 for logos
+        # Merge title cells (D1:U1) for centered title
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 1, "endColumnIndex": 19},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 3, "endColumnIndex": 21},
                 "mergeType": "MERGE_ALL"
             }
         },
@@ -1083,42 +1087,43 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "mergeType": "MERGE_ALL"
             }
         },
+        # White background for entire header area (rows 1-2)
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 21},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 21},
                 "cell": {
                     "userEnteredFormat": {
-                        "backgroundColor": hex_to_rgb("1B1E36"),
+                        "backgroundColor": hex_to_rgb("FFFFFF"),
                         "verticalAlignment": "MIDDLE"
                     }
                 },
                 "fields": "userEnteredFormat.backgroundColor,userEnteredFormat.verticalAlignment"
             }
         },
+        # Format main title (D1:U1) - centered, bold, dark text
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 1, "endColumnIndex": 19},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 3, "endColumnIndex": 21},
                 "cell": {
                     "userEnteredFormat": {
-                        "textFormat": {"bold": True, "fontSize": 20, "foregroundColor": hex_to_rgb("FFFFFF"), "fontFamily": "Arial"},
+                        "textFormat": {"bold": True, "fontSize": 20, "foregroundColor": hex_to_rgb("1B1E36"), "fontFamily": "Arial"},
                         "horizontalAlignment": "CENTER"
                     }
                 },
                 "fields": "userEnteredFormat.textFormat,userEnteredFormat.horizontalAlignment"
             }
         },
+        # Format subtitle (A2:U2) - centered, smaller, gray text on white background
         {
             "repeatCell": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 21},
                 "cell": {
                     "userEnteredFormat": {
-                        "backgroundColor": hex_to_rgb(HEX_COLORS["accent_primary"]),
-                        "textFormat": {"bold": False, "fontSize": 12, "foregroundColor": hex_to_rgb("FFFFFF"), "fontFamily": "Arial"},
-                        "horizontalAlignment": "CENTER",
-                        "verticalAlignment": "MIDDLE"
+                        "textFormat": {"bold": False, "fontSize": 11, "foregroundColor": hex_to_rgb("666666"), "fontFamily": "Arial"},
+                        "horizontalAlignment": "CENTER"
                     }
                 },
-                "fields": "userEnteredFormat"
+                "fields": "userEnteredFormat.textFormat,userEnteredFormat.horizontalAlignment"
             }
         },
         {
@@ -1178,14 +1183,14 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         {
             "updateDimensionProperties": {
                 "range": {"sheetId": sheet_id, "dimension": "ROWS", "startIndex": 0, "endIndex": 1},
-                "properties": {"pixelSize": 60},
+                "properties": {"pixelSize": 70},
                 "fields": "pixelSize"
             }
         },
         {
             "updateDimensionProperties": {
                 "range": {"sheetId": sheet_id, "dimension": "ROWS", "startIndex": 1, "endIndex": 2},
-                "properties": {"pixelSize": 30},
+                "properties": {"pixelSize": 25},
                 "fields": "pixelSize"
             }
         },
@@ -1198,22 +1203,15 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "updateDimensionProperties": {
-                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 1},
-                "properties": {"pixelSize": 120},
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 2},
+                "properties": {"pixelSize": 100},
                 "fields": "pixelSize"
             }
         },
         {
             "updateDimensionProperties": {
-                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 1, "endIndex": 5},
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 6},
                 "properties": {"pixelSize": 150},
-                "fields": "pixelSize"
-            }
-        },
-        {
-            "updateDimensionProperties": {
-                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 19, "endIndex": 20},
-                "properties": {"pixelSize": 120},
                 "fields": "pixelSize"
             }
         }

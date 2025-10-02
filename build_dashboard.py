@@ -1056,7 +1056,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         # Row 2: Subtitle centered (A2)
         {"range": f"{DASHBOARD_SHEET}!A2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
         # KPI headers and values
-        {"range": f"{DASHBOARD_SHEET}!B3:F3", "values": [["Total Participants", "Distinct Clusters", "Age 18-35 (%)", "Female (%)", "Avg Household Size"]]},
+        {"range": f"{DASHBOARD_SHEET}!B3:F3", "values": [["Total Participants", "Distinct Clusters", "Age 18-35", "Female", "Avg Household Size"]]},
         {"range": f"{DASHBOARD_SHEET}!B4:F4", "values": [[total_participants, distinct_clusters, age_18_35_pct / 100, female_pct / 100, f"{avg_household:.1f}"]]},
     ]
 

@@ -1034,6 +1034,8 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
     distinct_clusters = len(set(r["Cluster"] for r in data))
     age_18_35 = sum(1 for r in data if r["Age_Range"] == "18-35")
     age_18_35_pct = (age_18_35 / total_participants * 100) if total_participants else 0
+    female_count = sum(1 for r in data if r["Sex"] == "Female")
+    female_pct = (female_count / total_participants * 100) if total_participants else 0
     avg_household = mean([r["Household_Num"] for r in data if r["Household_Num"] > 0]) if any(r["Household_Num"] > 0 for r in data) else 0
 
     # Get current time in WAT (UTC+1)
@@ -1054,8 +1056,8 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         # Row 2: Subtitle centered (A2)
         {"range": f"{DASHBOARD_SHEET}!A2", "values": [[f"Program Overview & Demographics Analysis | Updated: {timestamp}"]]},
         # KPI headers and values
-        {"range": f"{DASHBOARD_SHEET}!B3:E3", "values": [["Total Participants", "Distinct Clusters", "Age 18-35 (%)", "Avg Household Size"]]},
-        {"range": f"{DASHBOARD_SHEET}!B4:E4", "values": [[total_participants, distinct_clusters, age_18_35_pct / 100, f"{avg_household:.1f}"]]},
+        {"range": f"{DASHBOARD_SHEET}!B3:F3", "values": [["Total Participants", "Distinct Clusters", "Age 18-35 (%)", "Female (%)", "Avg Household Size"]]},
+        {"range": f"{DASHBOARD_SHEET}!B4:F4", "values": [[total_participants, distinct_clusters, age_18_35_pct / 100, female_pct / 100, f"{avg_household:.1f}"]]},
     ]
 
     def _write_header():
@@ -1128,7 +1130,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 2, "endRowIndex": 3, "startColumnIndex": 1, "endColumnIndex": 5},
+                "range": {"sheetId": sheet_id, "startRowIndex": 2, "endRowIndex": 3, "startColumnIndex": 1, "endColumnIndex": 6},
                 "cell": {
                     "userEnteredFormat": {
                         "backgroundColor": hex_to_rgb(HEX_COLORS["kpi_fill"]),
@@ -1148,7 +1150,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 3, "endRowIndex": 4, "startColumnIndex": 1, "endColumnIndex": 5},
+                "range": {"sheetId": sheet_id, "startRowIndex": 3, "endRowIndex": 4, "startColumnIndex": 1, "endColumnIndex": 6},
                 "cell": {
                     "userEnteredFormat": {
                         "backgroundColor": hex_to_rgb("FFFFFF"),
@@ -1168,7 +1170,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 3, "endRowIndex": 4, "startColumnIndex": 3, "endColumnIndex": 4},
+                "range": {"sheetId": sheet_id, "startRowIndex": 3, "endRowIndex": 4, "startColumnIndex": 3, "endColumnIndex": 5},
                 "cell": {
                     "userEnteredFormat": {
                         "numberFormat": {
@@ -1210,7 +1212,7 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         },
         {
             "updateDimensionProperties": {
-                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 1, "endIndex": 5},
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 1, "endIndex": 6},
                 "properties": {"pixelSize": 180},
                 "fields": "pixelSize"
             }

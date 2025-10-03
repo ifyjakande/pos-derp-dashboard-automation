@@ -657,32 +657,21 @@ def create_charts(service, dashboard_sheet_id: int, pivot_sheet_id: int, layout:
             "endColumnIndex": end_col,  # endColumnIndex is exclusive
         }
     
-    # Professional pixel-based positioning for clean tiling
-    # Horizontal layout - spreading charts across the width
-    chart_width = 380
-    chart_height = 260
-    charts_per_row = 4  # 4 charts per row for better horizontal spread
-    
-    # Pixel offsets for precise positioning
-    start_x = 15  # Left margin
-    start_y = 40  # Minimal gap after KPI table
-    horizontal_gap = 20  # Gap between charts
-    vertical_gap = 25  # Gap between rows
-    
+    charts_per_row = 4
+    chart_width = 340
+    chart_height = 240
+    horizontal_gap = 20
+    row_stride = 12
+    chart_start_row = 5
+    chart_anchor_column = 0
+
     current_chart = 0
-    
-    def add_chart(title: str, chart_spec: Dict, width: int = None, height: int = None):
+
+    def add_chart(title: str, chart_spec: Dict):
         nonlocal current_chart
-        
-        w = width if width else chart_width
-        h = height if height else chart_height
-        
-        # Calculate position based on chart number
-        row_num = current_chart // charts_per_row
-        col_num = current_chart % charts_per_row
-        
-        offset_x = start_x + col_num * (w + horizontal_gap)
-        offset_y = start_y + row_num * (h + vertical_gap)
+
+        row_index = chart_start_row + (current_chart // charts_per_row) * row_stride
+        offset_x = (current_chart % charts_per_row) * (chart_width + horizontal_gap)
         
         requests.append({
             "addChart": {
@@ -698,13 +687,13 @@ def create_charts(service, dashboard_sheet_id: int, pivot_sheet_id: int, layout:
                         "overlayPosition": {
                             "anchorCell": {
                                 "sheetId": dashboard_sheet_id,
-                                "rowIndex": 0,
-                                "columnIndex": 0,
+                                "rowIndex": row_index,
+                                "columnIndex": chart_anchor_column,
                             },
                             "offsetXPixels": offset_x,
-                            "offsetYPixels": offset_y,
-                            "widthPixels": w,
-                            "heightPixels": h,
+                            "offsetYPixels": 0,
+                            "widthPixels": chart_width,
+                            "heightPixels": chart_height,
                         }
                     },
                 }
@@ -1078,14 +1067,14 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         # Merge title cells (C1:M1) for centered title over actual dashboard content
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 13},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 8},
                 "mergeType": "MERGE_ALL"
             }
         },
         # Merge subtitle row (A2:M2) to match dashboard content width
         {
             "mergeCells": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 13},
+                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 10},
                 "mergeType": "MERGE_ALL"
             }
         },
@@ -1105,10 +1094,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         # Format main title (C1:M1) - centered, bold, blue accent color
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 13},
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 8},
                 "cell": {
                     "userEnteredFormat": {
-                        "textFormat": {"bold": True, "fontSize": 34, "foregroundColor": hex_to_rgb(HEX_COLORS["accent_primary"]), "fontFamily": "Arial"},
+                        "textFormat": {"bold": True, "fontSize": 30, "foregroundColor": hex_to_rgb(HEX_COLORS["accent_primary"]), "fontFamily": "Arial"},
                         "horizontalAlignment": "CENTER"
                     }
                 },
@@ -1118,10 +1107,10 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
         # Format subtitle (A2:M2) - centered, bold, italic, gray text on white background
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 13},
+                "range": {"sheetId": sheet_id, "startRowIndex": 1, "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 10},
                 "cell": {
                     "userEnteredFormat": {
-                        "textFormat": {"bold": True, "italic": True, "fontSize": 11, "foregroundColor": hex_to_rgb("666666"), "fontFamily": "Arial"},
+                        "textFormat": {"bold": True, "italic": True, "fontSize": 10, "foregroundColor": hex_to_rgb("666666"), "fontFamily": "Arial"},
                         "horizontalAlignment": "CENTER"
                     }
                 },

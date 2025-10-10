@@ -268,10 +268,52 @@ def fetch_data(service) -> Tuple[List[str], List[List[str]]]:
     return header, all_data_rows
 
 
+def parse_numeric_value(value: str) -> float:
+    """
+    Parse numeric values with support for ranges and special formats.
+
+    Examples:
+        "30-50" -> 40.0 (midpoint)
+        "<1" -> 0.5 (midpoint of 0-1)
+        "0.5" -> 0.5
+        "2.5" -> 2.5
+        "" -> 0.0
+    """
+    value = value.strip()
+
+    if not value:
+        return 0.0
+
+    # Handle "less than" values like "<1"
+    if value.startswith("<"):
+        try:
+            upper_bound = float(value[1:].strip())
+            return upper_bound / 2  # Midpoint between 0 and upper bound
+        except:
+            return 0.0
+
+    # Handle ranges like "30-50"
+    if "-" in value:
+        parts = value.split("-")
+        if len(parts) == 2:
+            try:
+                lower = float(parts[0].strip())
+                upper = float(parts[1].strip())
+                return (lower + upper) / 2  # Midpoint
+            except:
+                pass
+
+    # Handle regular numeric values (including decimals like 2.5, 0.5)
+    try:
+        return float(value)
+    except:
+        return 0.0
+
+
 def normalize_data(header: List[str], rows: List[List[str]]) -> List[Dict[str, str]]:
     """Convert rows to dictionaries and normalize values."""
     normalized = []
-    
+
     SEX_MAP = {"F": "Female", "M": "Male"}
     MARITAL_MAP = {"M": "Married", "S": "Single", "D": "Divorced", "W": "Widowed"}
     EDUCATION_MAP = {
@@ -289,16 +331,16 @@ def normalize_data(header: List[str], rows: List[List[str]]) -> List[Dict[str, s
             continue
         record = dict(zip(header, row))
         
-        sex_raw = record.get("SEX", "").strip()
+        sex_raw = record.get("SEX", "").strip().upper()
         record["Sex"] = SEX_MAP.get(sex_raw, "Other" if sex_raw else "Not Reported")
-        
-        marital_raw = record.get("MARITAL STATUS\nM/S/D/W", "").strip()
+
+        marital_raw = record.get("MARITAL STATUS\nM/S/D/W", "").strip().upper()
         record["Marital_Status"] = MARITAL_MAP.get(marital_raw, "Other" if marital_raw else "Not Reported")
         
         edu_raw = record.get("EDUCATIONAL LEVEL", "").strip()
         record["Education"] = EDUCATION_MAP.get(edu_raw, "Other" if edu_raw else "Not Reported")
         
-        emp_raw = record.get("EMPLOYMENT STATUS ", "").strip().title()
+        emp_raw = record.get("EMPLOYMENT STATUS", "").strip().title()
         if emp_raw in {"Self-Employed", "Self-Empolyed", "Self Employeed"}:
             emp_raw = "Self-Employed"
         record["Employment"] = emp_raw if emp_raw else "Not Reported"
@@ -307,26 +349,12 @@ def normalize_data(header: List[str], rows: List[List[str]]) -> List[Dict[str, s
         record["Cluster"] = record.get("CLUSTER / ASSOCIATION NAME", "").strip() or "Not Reported"
         record["State"] = record.get("STATE", "").strip() or "Not Reported"
         record["LGA"] = record.get("CLUSTER/ASSOCIATION LGA", "").strip() or "Not Reported"
-        
-        try:
-            record["Age_Num"] = float(record.get("AGE ", "").strip() or 0)
-        except:
-            record["Age_Num"] = 0
-            
-        try:
-            record["Household_Num"] = float(record.get("NO IN HOUSEHOLD", "").strip() or 0)
-        except:
-            record["Household_Num"] = 0
-            
-        try:
-            record["Years_Num"] = float(record.get("YEARS IN POULTRY BUSSINESS", "").strip() or 0)
-        except:
-            record["Years_Num"] = 0
-            
-        try:
-            record["Birds_Num"] = float(record.get("NO OF BIRDS ON FARM", "").strip() or 0)
-        except:
-            record["Birds_Num"] = 0
+
+        # Use parse_numeric_value to handle ranges, decimals, and special formats
+        record["Age_Num"] = parse_numeric_value(record.get("AGE", ""))
+        record["Household_Num"] = parse_numeric_value(record.get("NO IN HOUSEHOLD", ""))
+        record["Years_Num"] = parse_numeric_value(record.get("YEARS IN POULTRY BUSSINESS", ""))
+        record["Birds_Num"] = parse_numeric_value(record.get("NO OF BIRDS ON FARM", ""))
         
         normalized.append(record)
     

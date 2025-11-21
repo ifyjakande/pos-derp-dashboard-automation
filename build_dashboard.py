@@ -1233,6 +1233,20 @@ def add_dashboard_header(service, data: List[Dict], sheet_id: int, spreadsheet_i
                 "properties": {"pixelSize": 180},
                 "fields": "pixelSize"
             }
+        },
+        {
+            "repeatCell": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 3, "endRowIndex": 4, "startColumnIndex": 1, "endColumnIndex": 2},
+                "cell": {
+                    "userEnteredFormat": {
+                        "numberFormat": {
+                            "type": "NUMBER",
+                            "pattern": "#,##0"
+                        }
+                    }
+                },
+                "fields": "userEnteredFormat.numberFormat"
+            }
         }
     ]
 

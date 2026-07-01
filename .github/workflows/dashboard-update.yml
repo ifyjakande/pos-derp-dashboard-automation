@@ -3,7 +3,7 @@ name: Update Dashboard Every 5 Minutes
 on:
   # Run every 5 minutes
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '4-59/5 * * * *'
 
   # Allow manual trigger
   workflow_dispatch:

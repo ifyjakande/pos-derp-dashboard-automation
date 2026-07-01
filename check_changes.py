@@ -8,6 +8,7 @@ Only runs in CI environment (GitHub Actions).
 import json
 import os
 import sys
+import time
 import hashlib
 from google.oauth2.service_account import Credentials
 import gspread
@@ -42,16 +43,29 @@ def get_credentials():
 
 def get_source_data_hash(spreadsheet_id, credentials, source_sheet_name):
     """Get content hash of the source data sheet."""
+    max_retries = 4
     try:
-        # Use gspread for easier sheet access
-        gc = gspread.authorize(credentials)
-        spreadsheet = gc.open_by_key(spreadsheet_id)
+        # Retry transient API errors (rate limits / server errors) with backoff
+        for attempt in range(max_retries):
+            try:
+                # Use gspread for easier sheet access
+                gc = gspread.authorize(credentials)
+                spreadsheet = gc.open_by_key(spreadsheet_id)
 
-        # Get the source sheet
-        source_sheet = spreadsheet.worksheet(source_sheet_name)
+                # Get the source sheet
+                source_sheet = spreadsheet.worksheet(source_sheet_name)
 
-        # Get all values from the source sheet
-        all_values = source_sheet.get_all_values()
+                # Get all values from the source sheet
+                all_values = source_sheet.get_all_values()
+                break
+            except gspread.exceptions.APIError as e:
+                status = e.response.status_code
+                if status in (429, 500, 503) and attempt < max_retries - 1:
+                    wait_time = 5 * (2 ** attempt)
+                    print(f"Transient API error {status} (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                raise
 
         # Create hash of the content
         content_str = str(all_values)

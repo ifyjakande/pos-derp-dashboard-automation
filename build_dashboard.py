@@ -157,25 +157,30 @@ def get_service():
     return build("sheets", "v4", credentials=creds)
 
 
-def get_sheet_id(service, sheet_name: str, spreadsheet_id: str) -> int:
-    """Get the sheet ID for a given sheet name in a spreadsheet."""
+def fetch_spreadsheet_metadata(service, spreadsheet_id: str) -> Dict:
+    """Fetch sheet properties and charts for a spreadsheet in a single call."""
     def _get():
         return service.spreadsheets().get(
-            spreadsheetId=spreadsheet_id, fields="sheets(properties(sheetId,title))"
+            spreadsheetId=spreadsheet_id,
+            fields="sheets(properties(sheetId,title),charts(chartId))"
         ).execute()
 
-    spreadsheet = execute_with_retry(_get, f"get_sheet_id({sheet_name})")
-    for sheet in spreadsheet.get("sheets", []):
+    return execute_with_retry(_get, "fetch_spreadsheet_metadata")
+
+
+def get_sheet_id(metadata: Dict, sheet_name: str, spreadsheet_id: str) -> int:
+    """Get the sheet ID for a given sheet name from cached spreadsheet metadata."""
+    for sheet in metadata.get("sheets", []):
         props = sheet.get("properties", {})
         if props.get("title") == sheet_name:
             return props["sheetId"]
     raise ValueError(f"Sheet '{sheet_name}' not found in spreadsheet {spreadsheet_id}.")
 
 
-def create_sheet_if_not_exists(service, spreadsheet_id: str, sheet_name: str) -> int:
+def create_sheet_if_not_exists(service, spreadsheet_id: str, sheet_name: str, metadata: Dict) -> int:
     """Create a sheet if it doesn't exist and return its ID."""
     try:
-        return get_sheet_id(service, sheet_name, spreadsheet_id)
+        return get_sheet_id(metadata, sheet_name, spreadsheet_id)
     except ValueError:
         # Sheet doesn't exist, create it
         print(f"  Creating '{sheet_name}' sheet...")
@@ -196,6 +201,10 @@ def create_sheet_if_not_exists(service, spreadsheet_id: str, sheet_name: str) ->
 
         response = execute_with_retry(_create, f"create_sheet({sheet_name})")
         sheet_id = response["replies"][0]["addSheet"]["properties"]["sheetId"]
+        # Keep the cached metadata in sync with the newly created sheet
+        metadata.setdefault("sheets", []).append({
+            "properties": {"sheetId": sheet_id, "title": sheet_name}
+        })
         print(f"  ✓ Created '{sheet_name}' sheet")
         return sheet_id
 
@@ -497,7 +506,7 @@ def aggregate_data(data: List[Dict[str, str]]) -> Dict:
     }
 
 
-def clear_sheet(service, sheet_name: str, spreadsheet_id: str):
+def clear_sheet(service, sheet_name: str, spreadsheet_id: str, metadata: Dict):
     """Clear all content from a sheet."""
     print(f"Clearing {sheet_name}...")
 
@@ -509,22 +518,15 @@ def clear_sheet(service, sheet_name: str, spreadsheet_id: str):
 
     execute_with_retry(_clear, f"clear_sheet({sheet_name})")
 
-    sheet_id = get_sheet_id(service, sheet_name, spreadsheet_id)
-
-    def _get_charts():
-        return service.spreadsheets().get(
-            spreadsheetId=spreadsheet_id,
-            fields="sheets(charts(chartId),properties(sheetId,title))"
-        ).execute()
-
-    spreadsheet = execute_with_retry(_get_charts, f"get_charts({sheet_name})")
+    sheet_id = get_sheet_id(metadata, sheet_name, spreadsheet_id)
 
     requests = []
-    for sheet in spreadsheet.get("sheets", []):
+    for sheet in metadata.get("sheets", []):
         if sheet.get("properties", {}).get("sheetId") != sheet_id:
             continue
         for chart in sheet.get("charts", []):
             requests.append({"deleteEmbeddedObject": {"objectId": chart["chartId"]}})
+        sheet["charts"] = []
 
     if requests:
         def _delete_charts():
@@ -1310,13 +1312,16 @@ def populate_spreadsheet(service, spreadsheet_id: str, spreadsheet_name: str, da
     print(f"Populating {spreadsheet_name}...")
     print(f"{'='*60}")
 
+    # Fetch sheet/chart metadata once and reuse it for the calls below
+    metadata = fetch_spreadsheet_metadata(service, spreadsheet_id)
+
     # Create sheets if they don't exist
-    dashboard_id = create_sheet_if_not_exists(service, spreadsheet_id, DASHBOARD_SHEET)
-    pivot_id = create_sheet_if_not_exists(service, spreadsheet_id, PIVOT_SHEET)
+    dashboard_id = create_sheet_if_not_exists(service, spreadsheet_id, DASHBOARD_SHEET, metadata)
+    pivot_id = create_sheet_if_not_exists(service, spreadsheet_id, PIVOT_SHEET, metadata)
 
     # Clear existing content
-    clear_sheet(service, PIVOT_SHEET, spreadsheet_id)
-    clear_sheet(service, DASHBOARD_SHEET, spreadsheet_id)
+    clear_sheet(service, PIVOT_SHEET, spreadsheet_id, metadata)
+    clear_sheet(service, DASHBOARD_SHEET, spreadsheet_id, metadata)
 
     # Write pivot tables and get layout
     layout = write_pivot_tables(service, aggregations, spreadsheet_id)
